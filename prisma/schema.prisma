@@ -1,0 +1,133 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  name          String
+  phone         String?
+  role          String         @default("user")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+  purchases     Purchase[]
+  transactions  Transaction[]
+
+  @@map("users")
+}
+
+model Plan {
+  id            Int            @id @default(autoincrement())
+  name          String // "Harian", "Mingguan", "Bulanan", "Tahunan"
+  durationDays  Int // 1, 7, 30, 365
+  price         Decimal        @db.Decimal(10, 2)
+  description   String?
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  subscriptions Subscription[]
+  transactions  Transaction[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id         Int      @id @default(autoincrement())
+  userId     String
+  planId     Int
+  startDate  DateTime
+  endDate    DateTime
+  status     String   @default("active") // active, expired, cancelled
+  autoRenew  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id])
+  plan       Plan     @relation(fields: [planId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model Edition {
+  id           Int        @id @default(autoincrement())
+  title        String
+  publishDate  DateTime
+  coverImageUrl String
+  pdfUrl       String // S3 path
+  pageCount    Int        @default(1)
+  price        Decimal    @db.Decimal(10, 2) // harga satuan
+  isPublished  Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  purchases    Purchase[]
+
+  @@map("editions")
+}
+
+model Transaction {
+  id               Int        @id @default(autoincrement())
+  userId           String
+  planId           Int?
+  amount           Decimal    @db.Decimal(10, 2)
+  status           String     @default("pending") // pending, success, failed, expired
+  paymentMethod    String?
+  midtransOrderId  String     @unique
+  midtransResponse Json?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  user             User       @relation(fields: [userId], references: [id])
+  plan             Plan?      @relation(fields: [planId], references: [id])
+  purchases        Purchase[]
+
+  @@map("transactions")
+}
+
+model Purchase {
+  id            Int         @id @default(autoincrement())
+  userId        String
+  editionId     Int
+  transactionId Int?
+  purchasedAt   DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id])
+  edition       Edition     @relation(fields: [editionId], references: [id])
+  transaction   Transaction? @relation(fields: [transactionId], references: [id])
+
+  @@unique([userId, editionId])
+  @@map("purchases")
+}
+
+model Book {
+  id          String   @id @default(uuid())
+  title       String
+  author      String
+  publishDate DateTime
+  coverUrl    String
+  price       Decimal  @db.Decimal(10, 2)
+  description String?
+  category    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("books")
+}
+
+
+model Event {
+  id         String   @id @default(uuid())
+  title      String
+  date       DateTime
+  imageUrl   String
+  location   String
+  ticketLink String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("events")
+}
