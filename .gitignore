@@ -43,3 +43,7 @@ Thumbs.db
 
 # Agent/CLI configs
 .antigravitycli/
+
+# Uploads
+/public/uploads/editions/
+

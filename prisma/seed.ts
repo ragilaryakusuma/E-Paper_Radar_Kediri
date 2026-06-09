@@ -19,43 +19,52 @@ async function main() {
   const plans = await Promise.all([
     prisma.plan.create({
       data: {
-        name: 'Harian',
-        durationDays: 1,
-        price: 3000,
-        description: 'Akses penuh ke e-paper selama 1 hari',
-        isActive: true,
-      },
-    }),
-    prisma.plan.create({
-      data: {
-        name: 'Mingguan',
-        durationDays: 7,
-        price: 15000,
-        description: 'Akses penuh ke e-paper selama 7 hari',
-        isActive: true,
-      },
-    }),
-    prisma.plan.create({
-      data: {
-        name: 'Bulanan',
+        name: '1 Bulan',
         durationDays: 30,
-        price: 50000,
-        description: 'Akses penuh ke e-paper selama 30 hari',
+        price: 30000,
+        description: 'Akses penuh ke e-paper selama 1 bulan',
         isActive: true,
       },
     }),
     prisma.plan.create({
       data: {
-        name: 'Tahunan',
+        name: '3 Bulan',
+        durationDays: 90,
+        price: 90000,
+        description: 'Akses penuh ke e-paper selama 3 bulan',
+        isActive: true,
+      },
+    }),
+    prisma.plan.create({
+      data: {
+        name: '6 Bulan',
+        durationDays: 180,
+        price: 180000,
+        description: 'Akses penuh ke e-paper selama 6 bulan',
+        isActive: true,
+      },
+    }),
+    prisma.plan.create({
+      data: {
+        name: '9 Bulan',
+        durationDays: 270,
+        price: 270000,
+        description: 'Akses penuh ke e-paper selama 9 bulan',
+        isActive: true,
+      },
+    }),
+    prisma.plan.create({
+      data: {
+        name: '1 Tahun',
         durationDays: 365,
-        price: 500000,
+        price: 360000,
         description: 'Akses penuh ke e-paper selama 1 tahun (365 hari)',
         isActive: true,
       },
     }),
   ]);
 
-  const [planHarian, planMingguan, planBulanan, planTahunan] = plans;
+  const [plan1Bulan, plan3Bulan, plan6Bulan, plan9Bulan, plan1Tahun] = plans;
   console.log(`Seeded ${plans.length} plans.`);
 
   console.log('Seeding users...');
@@ -156,7 +165,7 @@ async function main() {
   await prisma.subscription.create({
     data: {
       userId: user1.id,
-      planId: planBulanan.id,
+      planId: plan1Bulan.id,
       startDate: now,
       endDate: thirtyDaysLater,
       status: 'active',
@@ -164,7 +173,7 @@ async function main() {
     },
   });
 
-  // Siti Rahma: Expired Weekly Subscription (from 10 days ago to 3 days ago)
+  // Siti Rahma: Expired Subscription (from 10 days ago to 3 days ago)
   const tenDaysAgo = new Date();
   tenDaysAgo.setDate(now.getDate() - 10);
   const threeDaysAgo = new Date();
@@ -173,7 +182,7 @@ async function main() {
   await prisma.subscription.create({
     data: {
       userId: user2.id,
-      planId: planMingguan.id,
+      planId: plan3Bulan.id,
       startDate: tenDaysAgo,
       endDate: threeDaysAgo,
       status: 'expired',
@@ -184,53 +193,53 @@ async function main() {
   console.log('Seeded subscriptions.');
 
   console.log('Seeding transactions and purchases...');
-  // Transaction 1: Budi Santoso monthly plan (Success)
+  // Transaction 1: Budi Santoso 1 Month plan (Success)
   const tx1 = await prisma.transaction.create({
     data: {
       userId: user1.id,
-      planId: planBulanan.id,
-      amount: 50000,
+      planId: plan1Bulan.id,
+      amount: 30000,
       status: 'success',
       paymentMethod: 'gopay',
       midtransOrderId: 'ORDER-10001',
       midtransResponse: {
         transaction_status: 'settlement',
         payment_type: 'gopay',
-        gross_amount: '50000.00',
+        gross_amount: '30000.00',
       },
     },
   });
 
-  // Transaction 2: Siti Rahma weekly plan (Success)
+  // Transaction 2: Siti Rahma 3 Month plan (Success)
   await prisma.transaction.create({
     data: {
       userId: user2.id,
-      planId: planMingguan.id,
-      amount: 15000,
+      planId: plan3Bulan.id,
+      amount: 90000,
       status: 'success',
       paymentMethod: 'bank_transfer',
       midtransOrderId: 'ORDER-10002',
       midtransResponse: {
         transaction_status: 'settlement',
         payment_type: 'bank_transfer',
-        gross_amount: '15000.00',
+        gross_amount: '90000.00',
       },
     },
   });
 
-  // Transaction 3: Siti Rahma harian plan (Pending)
+  // Transaction 3: Siti Rahma 6 Month plan (Pending)
   await prisma.transaction.create({
     data: {
       userId: user2.id,
-      planId: planHarian.id,
-      amount: 3000,
+      planId: plan6Bulan.id,
+      amount: 180000,
       status: 'pending',
       paymentMethod: 'qris',
       midtransOrderId: 'ORDER-10003',
       midtransResponse: {
         transaction_status: 'pending',
         payment_type: 'qris',
-        gross_amount: '3000.00',
+        gross_amount: '180000.00',
       },
     },
   });
@@ -269,6 +278,7 @@ async function main() {
       author: 'Tim Redaksi Radar Kediri',
       publishDate: new Date('2026-01-15T00:00:00.000Z'),
       coverUrl: '/images/books/book-sejarah.jpg',
+      pdfUrl: '/uploads/demo-book.pdf',
       price: 75000,
       description: 'Menelusuri jejak sejarah Kota Kediri dari masa kerajaan hingga era modern.',
       category: 'Sejarah',
@@ -278,6 +288,7 @@ async function main() {
       author: 'Dewi Sartika',
       publishDate: new Date('2026-01-10T00:00:00.000Z'),
       coverUrl: '/images/books/book-kuliner.jpg',
+      pdfUrl: '/uploads/demo-book.pdf',
       price: 50000,
       description: 'Panduan lengkap kuliner khas Kediri yang wajib dicoba.',
       category: 'Kuliner',
@@ -287,6 +298,7 @@ async function main() {
       author: 'Ahmad Fauzi',
       publishDate: new Date('2026-01-05T00:00:00.000Z'),
       coverUrl: '/images/books/book-wisata.jpg',
+      pdfUrl: '/uploads/demo-book.pdf',
       price: 65000,
       description: 'Eksplorasi destinasi wisata alam tersembunyi di Jawa Timur.',
       category: 'Travel',
@@ -296,6 +308,7 @@ async function main() {
       author: 'Tim Ekonomi Radar Kediri',
       publishDate: new Date('2025-12-20T00:00:00.000Z'),
       coverUrl: '/images/books/book-umkm.jpg',
+      pdfUrl: '/uploads/demo-book.pdf',
       price: 55000,
       description: 'Kumpulan kisah inspiratif pelaku UMKM sukses di Kediri.',
       category: 'Bisnis',
@@ -305,6 +318,7 @@ async function main() {
       author: 'Prof. Slamet Widodo',
       publishDate: new Date('2025-11-15T00:00:00.000Z'),
       coverUrl: '/images/books/book-legenda.jpg',
+      pdfUrl: '/uploads/demo-book.pdf',
       price: 60000,
       description: 'Menguak cerita rakyat dan mitos yang hidup di masyarakat Kediri.',
       category: 'Budaya',
@@ -314,6 +328,7 @@ async function main() {
       author: 'Budi Santoso',
       publishDate: new Date('2025-10-10T00:00:00.000Z'),
       coverUrl: '/images/books/book-foto.jpg',
+      pdfUrl: '/uploads/demo-book.pdf',
       price: 85000,
       description: 'Belajar teknik fotografi jurnalistik dari fotografer profesional.',
       category: 'Fotografi',

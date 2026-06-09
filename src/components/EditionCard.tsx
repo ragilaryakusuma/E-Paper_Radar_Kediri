@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import Card from './ui/Card'
+import { useAuth } from '@/lib/context/AuthContext'
 
 interface EditionCardProps {
   id: string
@@ -12,6 +13,8 @@ interface EditionCardProps {
   coverImage: string
   price: number
   href?: string
+  type?: 'book' | 'newspaper'
+  hasAccess?: boolean
 }
 
 export default function EditionCard({ 
@@ -20,14 +23,20 @@ export default function EditionCard({
   date, 
   coverImage, 
   price,
-  href 
+  href,
+  type = 'newspaper',
+  hasAccess = false
 }: EditionCardProps) {
-  const formattedDate = new Date(date).toLocaleDateString('id-ID', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  })
+  const { user } = useAuth()
+  const parsedDate = new Date(date)
+  const formattedDate = isNaN(parsedDate.getTime())
+    ? date
+    : parsedDate.toLocaleDateString('id-ID', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      })
 
   const formattedPrice = new Intl.NumberFormat('id-ID', {
     style: 'currency',
@@ -35,6 +44,12 @@ export default function EditionCard({
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   }).format(price)
+
+  // Determine if user has access to this edition
+  const hasUserAccess = type === 'newspaper' && (hasAccess || user?.isSubscribed || user?.role === 'admin')
+  const accessLabel = user?.role === 'admin' 
+    ? 'Akses Admin' 
+    : (user?.isSubscribed ? 'Akses Langganan' : 'Sudah Dibeli')
 
   const CardContent = (
     <motion.div
@@ -57,7 +72,7 @@ export default function EditionCard({
         {/* Card Info */}
         <div className="p-4">
           {/* Title */}
-          <h3 className="font-bold text-gray-900 line-clamp-2 mb-1 group-hover:text-primary transition-colors">
+          <h3 className={`font-bold line-clamp-2 mb-1 transition-colors ${type === 'book' ? 'group-hover:text-amber-600' : 'group-hover:text-primary'}`}>
             {title}
           </h3>
           
@@ -66,9 +81,12 @@ export default function EditionCard({
             {formattedDate}
           </p>
           
-          {/* Price */}
-          <p className="text-primary font-semibold">
-            {formattedPrice}
+          {/* Price or Label */}
+          <p className={`font-semibold ${type === 'book' ? 'text-amber-600' : (hasUserAccess ? 'text-green-600' : 'text-primary')}`}>
+            {type === 'book' 
+              ? 'Baca Digital Gratis' 
+              : (hasUserAccess ? accessLabel : formattedPrice)
+            }
           </p>
         </div>
       </Card>

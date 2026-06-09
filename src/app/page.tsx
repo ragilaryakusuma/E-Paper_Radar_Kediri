@@ -7,6 +7,8 @@ import EditionCard from '@/components/EditionCard'
 import HeroHighlight from '@/components/HeroHighlight'
 import EventBanner from '@/components/home/EventBanner'
 import { FadeIn, StaggerChildren, StaggerItem, SlideIn } from '@/components/animations'
+import { useAuth } from '@/lib/context/AuthContext'
+import { supabase } from '@/lib/supabase'
 
 interface Paper {
   id: number
@@ -47,11 +49,43 @@ const iklanCategories = [
 ]
 
 export default function HomePage() {
+  const { user } = useAuth()
   const [todayPaper, setTodayPaper] = useState<Paper | null>(null)
   const [archivePapers, setArchivePapers] = useState<Paper[]>([])
   const [books, setBooks] = useState<Book[]>([])
   const [events, setEvents] = useState<Event[]>([])
+  const [purchasedIds, setPurchasedIds] = useState<number[]>([])
   const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchPurchasedIds()
+    } else {
+      setPurchasedIds([])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+
+  const fetchPurchasedIds = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || (user?.id === 'demo-user-id' ? 'mock-demo-token' : undefined)
+      
+      const response = await fetch(`/api/library?userId=${user?.id}`, {
+        headers: token ? {
+          'Authorization': `Bearer ${token}`
+        } : {}
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        const ids = (data.newspapers || []).map((paper: any) => paper.id)
+        setPurchasedIds(ids)
+      }
+    } catch (e) {
+      console.error('Failed to fetch user purchases:', e)
+    }
+  }
 
   useEffect(() => {
     const loadData = async () => {
@@ -105,16 +139,19 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-paper-bg pt-24 lg:pt-44">
       {/* Hero Highlight - Bento Grid Layout */}
-      {todayPaper && <HeroHighlight paper={{
-        id: todayPaper.id.toString(),
-        title: todayPaper.title,
-        date: todayPaper.publishDate,
-        coverUrl: todayPaper.coverImageUrl,
-        pdfUrl: todayPaper.pdfUrl,
-        price: Number(todayPaper.price),
-        pageCount: todayPaper.pageCount || 1,
-        isToday: true
-      }} />}
+      {todayPaper && <HeroHighlight 
+        paper={{
+          id: todayPaper.id.toString(),
+          title: todayPaper.title,
+          date: todayPaper.publishDate,
+          coverUrl: todayPaper.coverImageUrl,
+          pdfUrl: todayPaper.pdfUrl,
+          price: Number(todayPaper.price),
+          pageCount: todayPaper.pageCount || 1,
+          isToday: true
+        }} 
+        hasAccess={purchasedIds.includes(todayPaper.id)}
+      />}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -148,6 +185,7 @@ export default function HomePage() {
                       coverImage={paper.coverImageUrl}
                       price={Number(paper.price)}
                       href={`/newspapers/${paper.id}`}
+                      hasAccess={purchasedIds.includes(paper.id)}
                     />
                   </StaggerItem>
                 ))}
@@ -162,7 +200,7 @@ export default function HomePage() {
                     Buku Pilihan
                   </h2>
                   <Link 
-                    href="/library" 
+                    href="/books" 
                     className="text-primary hover:text-primary-700 font-medium flex items-center gap-1 transition-colors"
                   >
                     Lihat Semua
@@ -180,7 +218,8 @@ export default function HomePage() {
                       date={new Date(book.publishDate).toLocaleDateString('id-ID')}
                       coverImage={book.coverUrl}
                       price={Number(book.price)}
-                      href={`/library/${book.id}`}
+                      href={`/books/${book.id}`}
+                      type="book"
                     />
                   </StaggerItem>
                 ))}

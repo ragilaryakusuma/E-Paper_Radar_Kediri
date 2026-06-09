@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Newspaper, Search, ChevronDown } from 'lucide-react'
 import EditionCard from '@/components/EditionCard'
+import { useAuth } from '@/lib/context/AuthContext'
+import { supabase } from '@/lib/supabase'
 
 interface Edition {
   id: number
@@ -12,15 +15,54 @@ interface Edition {
   price: number | string
 }
 
-export default function NewspapersPage() {
+function NewspapersContent() {
+  const { user } = useAuth()
   const [papers, setPapers] = useState<Edition[]>([])
+  const [purchasedIds, setPurchasedIds] = useState<number[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest')
 
+  const searchParams = useSearchParams()
+  const urlQuery = searchParams.get('q') || ''
+
+  useEffect(() => {
+    setSearchQuery(urlQuery)
+  }, [urlQuery])
+
   useEffect(() => {
     fetchEditions()
   }, [])
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchPurchasedIds()
+    } else {
+      setPurchasedIds([])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+
+  const fetchPurchasedIds = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || (user?.id === 'demo-user-id' ? 'mock-demo-token' : undefined)
+
+      const response = await fetch(`/api/library?userId=${user?.id}`, {
+        headers: token ? {
+          'Authorization': `Bearer ${token}`
+        } : {}
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const ids = (data.newspapers || []).map((paper: any) => paper.id)
+        setPurchasedIds(ids)
+      }
+    } catch (e) {
+      console.error('Failed to fetch user purchases:', e)
+    }
+  }
 
   const fetchEditions = async () => {
     try {
@@ -38,7 +80,7 @@ export default function NewspapersPage() {
 
   // Filter and sort papers
   const filteredPapers = papers
-    .filter(paper => 
+    .filter(paper =>
       paper.title.toLowerCase().includes(searchQuery.toLowerCase())
     )
     .sort((a, b) => {
@@ -59,7 +101,7 @@ export default function NewspapersPage() {
             Arsip Koran Digital
           </h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            Akses edisi terbaru dan arsip koran Radar Kediri & Radar Nganjuk. 
+            Akses edisi terbaru dan arsip koran Radar Kediri.
             Baca berita terkini kapan saja, di mana saja.
           </p>
         </div>
@@ -120,6 +162,7 @@ export default function NewspapersPage() {
                 coverImage={paper.coverImageUrl}
                 price={Number(paper.price)}
                 href={`/newspapers/${paper.id}`}
+                hasAccess={purchasedIds.includes(paper.id)}
               />
             ))}
           </div>
@@ -134,5 +177,17 @@ export default function NewspapersPage() {
         )}
       </div>
     </main>
+  )
+}
+
+export default function NewspapersPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-gray-50 pt-32 lg:pt-40 pb-16 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#006CB9] mx-auto"></div>
+      </main>
+    }>
+      <NewspapersContent />
+    </Suspense>
   )
 }

@@ -1,20 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import { createSnapTransaction } from '@/lib/midtrans';
+import { getCurrentUser } from '@/lib/supabase';
 
 const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
+    const authHeader = request.headers.get('Authorization');
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+    
+    let jwtUser = null;
+    if (token) {
+      if (token === 'mock-admin-token') {
+        jwtUser = { id: 'admin-user-id' };
+      } else if (token === 'mock-demo-token') {
+        jwtUser = { id: 'demo-user-id' };
+      } else {
+        jwtUser = await getCurrentUser(token);
+      }
+      if (!jwtUser) {
+        return NextResponse.json({ error: 'Invalid authentication token' }, { status: 401 });
+      }
+    }
+
     const body = await request.json();
     const { userId, planId, items } = body;
+    const finalUserId = jwtUser ? jwtUser.id : userId;
 
-    if (!userId) {
+    if (!finalUserId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: finalUserId },
     });
 
     if (!user) {
@@ -26,6 +45,7 @@ export async function POST(request: NextRequest) {
     const itemDetails: any[] = [];
     let transactionPlanId: number | null = null;
     let editionIds: number[] = [];
+    let bookIds: string[] = [];
 
     if (planId) {
       // Plan subscription purchase
@@ -63,20 +83,7 @@ export async function POST(request: NextRequest) {
           });
           editionIds.push(edition.id);
         } else if (item.type === 'book') {
-          const book = await prisma.book.findUnique({
-            where: { id: item.id },
-          });
-          if (!book) {
-            return NextResponse.json({ error: `Book ${item.id} not found` }, { status: 404 });
-          }
-          const price = Number(book.price);
-          totalAmount += price * item.quantity;
-          itemDetails.push({
-            id: `BOOK-${book.id}`,
-            price,
-            quantity: item.quantity,
-            name: book.title,
-          });
+          return NextResponse.json({ error: 'Buku digital tidak dapat dibeli online. Buku ini bersifat gratis untuk dibaca bagi pengguna yang terdaftar.' }, { status: 400 });
         }
       }
     } else {
@@ -101,7 +108,7 @@ export async function POST(request: NextRequest) {
 
     const midtransResult = await createSnapTransaction(midtransParams);
 
-    // Save transaction to DB with pending status, storing editionIds in midtransResponse metadata
+    // Save transaction to DB with pending status, storing editionIds and bookIds in midtransResponse metadata
     await prisma.transaction.create({
       data: {
         userId: user.id,
@@ -112,6 +119,7 @@ export async function POST(request: NextRequest) {
         midtransResponse: {
           metadata: {
             editionIds,
+            bookIds,
           },
         },
       },

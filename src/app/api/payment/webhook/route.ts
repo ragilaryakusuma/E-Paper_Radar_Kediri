@@ -95,6 +95,29 @@ export async function POST(request: NextRequest) {
               });
             }
           }
+
+          // Process individual book purchases stored in transaction metadata
+          const bookIds = responseJson?.metadata?.bookIds;
+          if (Array.isArray(bookIds)) {
+            for (const bookId of bookIds) {
+              await prisma.purchase.upsert({
+                where: {
+                  userId_bookId: {
+                    userId: transaction.userId,
+                    bookId: bookId,
+                  }
+                },
+                create: {
+                  userId: transaction.userId,
+                  bookId: bookId,
+                  transactionId: transaction.id,
+                },
+                update: {
+                  transactionId: transaction.id,
+                }
+              });
+            }
+          }
         }
       }
     } else if (transaction_status === 'pending') {

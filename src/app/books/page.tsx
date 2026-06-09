@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { BookOpen, Search, ChevronDown, ShoppingCart, Tag } from 'lucide-react'
 import { useCartStore } from '@/lib/store/cartStore'
 import toast from 'react-hot-toast'
@@ -18,25 +19,18 @@ interface Book {
   category: string
 }
 
-export default function BooksPage() {
+function BooksContent() {
   const [books, setBooks] = useState<Book[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const addItem = useCartStore((state) => state.addItem)
 
-  const handleBuy = (book: Book) => {
-    addItem({
-      id: book.id,
-      type: 'book',
-      title: book.title,
-      subtitle: `oleh ${book.author}`,
-      coverUrl: book.coverUrl,
-      price: Number(book.price),
-      quantity: 1,
-    })
-    toast.success(`${book.title} ditambahkan ke keranjang`)
-  }
+  const searchParams = useSearchParams()
+  const urlQuery = searchParams.get('q') || ''
+
+  useEffect(() => {
+    setSearchQuery(urlQuery)
+  }, [urlQuery])
 
   useEffect(() => {
     fetchBooks()
@@ -148,7 +142,7 @@ export default function BooksPage() {
                 className="bg-white rounded-2xl shadow-sm overflow-hidden group hover:-translate-y-1 hover:shadow-xl transition-all duration-300"
               >
                 {/* Cover */}
-                <div className="aspect-[3/4] relative bg-gray-100 overflow-hidden">
+                <Link href={`/books/${book.id}`} className="aspect-[3/4] relative bg-gray-100 overflow-hidden block">
                   <Image
                     src={book.coverUrl}
                     alt={book.title}
@@ -163,23 +157,27 @@ export default function BooksPage() {
                       {book.category}
                     </span>
                   </div>
-                </div>
+                </Link>
 
                 {/* Info */}
                 <div className="p-4">
-                  <h3 className="font-bold text-gray-900 line-clamp-2 mb-1 group-hover:text-amber-600 transition-colors">
-                    {book.title}
-                  </h3>
+                  <Link href={`/books/${book.id}`} className="block">
+                    <h3 className="font-bold text-gray-900 line-clamp-2 mb-1 group-hover:text-amber-600 transition-colors">
+                      {book.title}
+                    </h3>
+                  </Link>
                   <p className="text-gray-500 text-sm mb-2">{book.author}</p>
-                  <p className="text-amber-600 font-bold mb-3">{formatPrice(Number(book.price))}</p>
+                  <p className="text-amber-600 font-semibold text-xs mb-3 flex items-center gap-1">
+                    <BookOpen className="w-3.5 h-3.5" /> Baca Digital Gratis
+                  </p>
                   
-                  <button 
-                    onClick={() => handleBuy(book)}
-                    className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-medium py-2.5 rounded-xl transition-colors"
+                  <Link 
+                    href={`/books/${book.id}`}
+                    className="w-full flex items-center justify-center gap-2 bg-amber-600 hover:bg-amber-700 text-white font-medium py-2.5 rounded-xl transition-colors text-sm font-sans"
                   >
-                    <ShoppingCart className="w-4 h-4" />
-                    Beli
-                  </button>
+                    <BookOpen className="w-4 h-4" />
+                    Baca & Detail
+                  </Link>
                 </div>
               </div>
             ))}
@@ -195,5 +193,17 @@ export default function BooksPage() {
         )}
       </div>
     </main>
+  )
+}
+
+export default function BooksPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen bg-gray-50 pt-32 lg:pt-40 pb-16 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-600 mx-auto"></div>
+      </main>
+    }>
+      <BooksContent />
+    </Suspense>
   )
 }

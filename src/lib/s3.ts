@@ -82,3 +82,8 @@ export async function getSignedReadUrl(keyOrUrl: string): Promise<string> {
 export function getEditionKey(editionId: number, filename: string): string {
   return `editions/${editionId}/${filename}`;
 }
+
+// Helper to generate S3 key for book
+export function getBookKey(bookId: string, filename: string): string {
+  return `books/${bookId}/${filename}`;
+}

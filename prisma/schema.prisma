@@ -92,14 +92,17 @@ model Transaction {
 model Purchase {
   id            Int         @id @default(autoincrement())
   userId        String
-  editionId     Int
+  editionId     Int?
+  bookId        String?
   transactionId Int?
   purchasedAt   DateTime    @default(now())
   user          User        @relation(fields: [userId], references: [id])
-  edition       Edition     @relation(fields: [editionId], references: [id])
+  edition       Edition?    @relation(fields: [editionId], references: [id])
+  book          Book?       @relation(fields: [bookId], references: [id])
   transaction   Transaction? @relation(fields: [transactionId], references: [id])
 
   @@unique([userId, editionId])
+  @@unique([userId, bookId])
   @@map("purchases")
 }
 
@@ -109,11 +112,13 @@ model Book {
   author      String
   publishDate DateTime
   coverUrl    String
+  pdfUrl      String   @default("")
   price       Decimal  @db.Decimal(10, 2)
   description String?
   category    String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  purchases   Purchase[]
 
   @@map("books")
 }

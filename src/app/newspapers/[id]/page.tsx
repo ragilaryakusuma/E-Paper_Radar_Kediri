@@ -17,6 +17,7 @@ import EditionCard from '@/components/EditionCard'
 import { supabase } from '@/lib/supabase'
 import { useCartStore } from '@/lib/store/cartStore'
 import toast from 'react-hot-toast'
+import { useAuth } from '@/lib/context/AuthContext'
 
 interface Edition {
   id: number
@@ -33,6 +34,7 @@ export default function NewspaperDetailPage({
 }: {
   params: { id: string }
 }) {
+  const { user } = useAuth()
   const [paper, setPaper] = useState<Edition | null>(null)
   const [loading, setLoading] = useState(true)
   const [archivePapers, setArchivePapers] = useState<Edition[]>([])
@@ -41,6 +43,39 @@ export default function NewspaperDetailPage({
   const [pdfAccessUrl, setPdfAccessUrl] = useState<string | null>(null)
   const [accessError, setAccessError] = useState<string | null>(null)
   const [checkingAccess, setCheckingAccess] = useState(false)
+  const [purchasedIds, setPurchasedIds] = useState<number[]>([])
+
+  const hasAccess = purchasedIds.includes(paper?.id || 0) || user?.isSubscribed || user?.role === 'admin'
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchPurchasedIds()
+    } else {
+      setPurchasedIds([])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, params.id])
+
+  const fetchPurchasedIds = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || (user?.id === 'demo-user-id' ? 'mock-demo-token' : undefined)
+      
+      const response = await fetch(`/api/library?userId=${user?.id}`, {
+        headers: token ? {
+          'Authorization': `Bearer ${token}`
+        } : {}
+      })
+      
+      if (response.ok) {
+        const data = await response.json()
+        const ids = (data.newspapers || []).map((p: any) => p.id)
+        setPurchasedIds(ids)
+      }
+    } catch (e) {
+      console.error('Failed to fetch user purchases:', e)
+    }
+  }
 
   const addItem = useCartStore((state) => state.addItem)
 
@@ -202,7 +237,7 @@ export default function NewspaperDetailPage({
 
         {/* PDF iframe fullscreen */}
         <iframe
-          src={pdfAccessUrl || paper.pdfUrl}
+          src={`${pdfAccessUrl || paper.pdfUrl}#toolbar=0&navpanes=0&messages=0`}
           className="w-full h-full pt-14"
           title={`${paper.title} - ${formattedDate}`}
         />
@@ -256,10 +291,17 @@ export default function NewspaperDetailPage({
                     <span>{paper.pageCount || 1} Halaman</span>
                   </div>
 
-                  {/* Price */}
-                  <div className="bg-primary/5 rounded-xl p-4">
-                    <p className="text-sm text-gray-500 mb-1">Harga</p>
-                    <p className="text-2xl font-bold text-primary">{formattedPrice}</p>
+                   {/* Price */}
+                  <div className="bg-primary/5 rounded-xl p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Harga</p>
+                      <p className="text-2xl font-bold text-primary">{formattedPrice}</p>
+                    </div>
+                    {hasAccess && (
+                      <span className="bg-green-100 text-green-800 text-xs font-bold px-3 py-1.5 rounded-full">
+                        ✓ Akses Aktif
+                      </span>
+                    )}
                   </div>
 
                   {/* Action Buttons */}
@@ -301,19 +343,38 @@ export default function NewspaperDetailPage({
                     )}
                   </button>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  {!hasAccess ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <button 
+                        onClick={handleAddToCart}
+                        className="flex items-center justify-center gap-2 bg-[#006CB9] hover:bg-[#005596] text-white font-medium py-2.5 px-4 rounded-xl transition-colors text-sm font-sans"
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                        Beli
+                      </button>
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(window.location.href);
+                          toast.success('Link koran disalin ke clipboard');
+                        }}
+                        className="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 px-4 rounded-xl transition-colors text-sm"
+                      >
+                        <Share2 className="w-4 h-4" />
+                        Bagikan
+                      </button>
+                    </div>
+                  ) : (
                     <button 
-                      onClick={handleAddToCart}
-                      className="flex items-center justify-center gap-2 bg-[#006CB9] hover:bg-[#005596] text-white font-medium py-2.5 px-4 rounded-xl transition-colors text-sm font-sans"
+                      onClick={() => {
+                        navigator.clipboard.writeText(window.location.href);
+                        toast.success('Link koran disalin ke clipboard');
+                      }}
+                      className="w-full flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 px-4 rounded-xl transition-colors text-sm"
                     >
-                      <ShoppingCart className="w-4 h-4" />
-                      Beli
-                    </button>
-                    <button className="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2.5 px-4 rounded-xl transition-colors text-sm">
                       <Share2 className="w-4 h-4" />
-                      Bagikan
+                      Bagikan Link Koran
                     </button>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -326,16 +387,18 @@ export default function NewspaperDetailPage({
                   <h2 className="text-lg font-bold text-gray-900">Pratinjau Koran</h2>
                   <p className="text-sm text-gray-500 mt-1">Klik &quot;Baca Sekarang&quot; untuk membaca edisi lengkap</p>
                 </div>
-                <div className="relative aspect-[4/3] bg-gray-100 cursor-pointer group" onClick={handleReadNow}>
-                  <iframe
-                    src={`${paper.pdfUrl}#page=1&view=FitH`}
-                    className="w-full h-full pointer-events-none"
-                    title={`Preview ${paper.title}`}
+                <div className="relative aspect-[3/4] bg-gray-100 cursor-pointer group overflow-hidden" onClick={handleReadNow}>
+                  <Image
+                    src={paper.coverImageUrl}
+                    alt={`Preview Cover ${paper.title}`}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    sizes="(max-width: 1024px) 100vw, 50vw"
                   />
                   {/* Overlay */}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                    <div className="bg-white/90 backdrop-blur-sm px-6 py-3 rounded-xl font-bold text-gray-900 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg flex items-center gap-2">
-                      <Maximize2 className="w-5 h-5" />
+                  <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors flex items-center justify-center">
+                    <div className="bg-white/95 backdrop-blur-sm px-6 py-3 rounded-xl font-extrabold text-gray-900 transition-all shadow-lg flex items-center gap-2 transform group-hover:scale-105">
+                      <Maximize2 className="w-5 h-5 text-[#006CB9]" />
                       Baca Edisi Lengkap
                     </div>
                   </div>
@@ -361,6 +424,7 @@ export default function NewspaperDetailPage({
                       coverImage={p.coverImageUrl}
                       price={Number(p.price)}
                       href={`/newspapers/${p.id}`}
+                      hasAccess={purchasedIds.includes(p.id)}
                     />
                   ))}
                 </div>
@@ -411,7 +475,7 @@ export default function NewspaperDetailPage({
             {/* PDF Viewer */}
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <iframe
-                src={pdfAccessUrl || paper.pdfUrl}
+                src={`${pdfAccessUrl || paper.pdfUrl}#toolbar=0&navpanes=0&messages=0`}
                 className="w-full"
                 style={{ height: 'calc(100vh - 220px)', minHeight: '600px' }}
                 title={`${paper.title} - ${formattedDate}`}

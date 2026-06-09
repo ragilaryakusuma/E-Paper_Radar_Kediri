@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { ShoppingCart, Trash2, Plus, Minus, ArrowLeft, CreditCard, ShieldCheck, Newspaper, BookOpen } from 'lucide-react'
 import { useCartStore } from '@/lib/store/cartStore'
 import { useAuth } from '@/lib/context/AuthContext'
+import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
 export default function CartPage() {
@@ -51,10 +52,14 @@ export default function CartPage() {
 
     setIsCheckingOut(true)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const authToken = session?.access_token || (user.id === 'demo-user-id' ? 'mock-demo-token' : undefined)
+
       const response = await fetch('/api/payment/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
         },
         body: JSON.stringify({
           userId: user.id,

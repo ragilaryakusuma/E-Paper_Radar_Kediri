@@ -12,9 +12,11 @@ import {
   Newspaper,
 } from 'lucide-react'
 import type { Paper } from '@/lib/mockData'
+import { useAuth } from '@/lib/context/AuthContext'
 
 interface HeroHighlightProps {
   paper: Paper
+  hasAccess?: boolean
 }
 
 // Animation variants
@@ -42,7 +44,13 @@ const itemVariants = {
   },
 }
 
-export default function HeroHighlight({ paper }: HeroHighlightProps) {
+export default function HeroHighlight({ paper, hasAccess = false }: HeroHighlightProps) {
+  const { user } = useAuth()
+  const hasUserAccess = hasAccess || user?.isSubscribed || user?.role === 'admin'
+  const accessLabel = user?.role === 'admin' 
+    ? 'Akses Admin' 
+    : (user?.isSubscribed ? 'Akses Langganan' : 'Milik Anda')
+
   const formattedDate = new Date(paper.date).toLocaleDateString('id-ID', {
     weekday: 'long',
     day: 'numeric',
@@ -230,7 +238,7 @@ export default function HeroHighlight({ paper }: HeroHighlightProps) {
                         transition: { type: 'spring', stiffness: 400 }
                       }}
                     >
-                      Rp {paper.price.toLocaleString('id-ID')}
+                      {hasUserAccess ? accessLabel : `Rp ${paper.price.toLocaleString('id-ID')}`}
                     </motion.div>
                   </motion.div>
                 </div>

@@ -14,6 +14,7 @@ import {
   Trash2, 
   Pencil,
   FileText,
+  BookOpen,
   Image as ImageIcon,
   Clock,
   MapPin,
@@ -34,11 +35,12 @@ import {
 } from 'lucide-react'
 import { papers, events } from '@/lib/mockData'
 
-type TabType = 'koran' | 'event'
+type TabType = 'koran' | 'event' | 'buku'
 
 // Sidebar Menu Items
 const menuItems = [
   { id: 'koran' as TabType, label: 'Upload Koran', icon: Newspaper },
+  { id: 'buku' as TabType, label: 'Upload Buku', icon: BookOpen },
   { id: 'event' as TabType, label: 'Kelola Event', icon: Calendar },
 ]
 
@@ -162,6 +164,7 @@ export default function AdminDashboard() {
         {/* Content Area */}
         <main className="p-4 lg:p-6">
           {activeTab === 'koran' && <UploadKoranTab />}
+          {activeTab === 'buku' && <UploadBukuTab />}
           {activeTab === 'event' && <KelolaEventTab />}
         </main>
       </div>
@@ -891,6 +894,385 @@ function KelolaEventTab() {
             </table>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+// =============================================
+// TAB: UPLOAD BUKU
+// =============================================
+interface DBBook {
+  id: string
+  title: string
+  author: string
+  publishDate: string
+  coverUrl: string
+  pdfUrl: string
+  price: string | number
+  category: string
+  description?: string | null
+}
+
+function UploadBukuTab() {
+  const [formData, setFormData] = useState({
+    title: '',
+    author: '',
+    date: '',
+    price: '75000',
+    category: 'Sejarah',
+    description: '',
+    coverImage: null as File | null,
+    pdfFile: null as File | null,
+  })
+  const [coverPreview, setCoverPreview] = useState<string | null>(null)
+  const [books, setBooks] = useState<DBBook[]>([])
+  const [loading, setLoading] = useState(true)
+  const coverInputRef = useRef<HTMLInputElement>(null)
+  const pdfInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    fetchBooks()
+  }, [])
+
+  const fetchBooks = async () => {
+    try {
+      const response = await fetch('/api/books')
+      if (response.ok) {
+        const data = await response.json()
+        setBooks(data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch books:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setFormData(prev => ({ ...prev, coverImage: file }))
+      const reader = new FileReader()
+      reader.onloadend = () => setCoverPreview(reader.result as string)
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setFormData(prev => ({ ...prev, pdfFile: file }))
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!formData.title || !formData.author || !formData.date || !formData.coverImage || !formData.pdfFile) {
+      alert('Harap lengkapi semua field wajib')
+      return
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      let token = session?.access_token
+
+      if (!token) {
+        const storedUser = localStorage.getItem('user')
+        if (storedUser) {
+          const userObj = JSON.parse(storedUser)
+          if (userObj.id === 'admin-user-id') {
+            token = 'mock-admin-token'
+          }
+        }
+      }
+
+      const uploadFormData = new FormData()
+      uploadFormData.append('title', formData.title)
+      uploadFormData.append('author', formData.author)
+      uploadFormData.append('publishDate', formData.date)
+      uploadFormData.append('price', formData.price)
+      uploadFormData.append('category', formData.category)
+      uploadFormData.append('description', formData.description)
+      uploadFormData.append('coverImage', formData.coverImage)
+      uploadFormData.append('pdfFile', formData.pdfFile)
+
+      const response = await fetch('/api/books', {
+        method: 'POST',
+        headers: token ? {
+          'Authorization': `Bearer ${token}`
+        } : {},
+        body: uploadFormData,
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        alert(`Error: ${error.error}`)
+        return
+      }
+
+      const result = await response.json()
+      alert(`✅ Buku "${result.title}" berhasil diupload!`)
+      
+      // Reset form
+      setFormData({
+        title: '',
+        author: '',
+        date: '',
+        price: '75000',
+        category: 'Sejarah',
+        description: '',
+        coverImage: null,
+        pdfFile: null,
+      })
+      setCoverPreview(null)
+
+      // Refresh books list
+      await fetchBooks()
+    } catch (error) {
+      console.error('Upload error:', error)
+      alert('Gagal mengupload buku. Cek console untuk detail.')
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Form Card */}
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-6">Upload Buku Baru</h3>
+        
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left: Form Fields */}
+            <div className="space-y-4">
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Judul Buku
+                </label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="Contoh: Babad Kediri"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                  required
+                />
+              </div>
+
+              {/* Author */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Penulis
+                </label>
+                <input
+                  type="text"
+                  value={formData.author}
+                  onChange={(e) => setFormData(prev => ({ ...prev, author: e.target.value }))}
+                  placeholder="Contoh: R. Soekardi"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                  required
+                />
+              </div>
+
+              {/* Date */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tanggal Terbit
+                </label>
+                <input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {/* Price */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Harga (Rp)
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.price}
+                    onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                    placeholder="75000"
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                    required
+                  />
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Kategori
+                  </label>
+                  <select
+                    value={formData.category}
+                    onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                  >
+                    <option value="Sejarah">Sejarah</option>
+                    <option value="Budaya">Budaya</option>
+                    <option value="Sastra">Sastra</option>
+                    <option value="Umum">Umum</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Deskripsi / Sinopsis
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Masukkan sinopsis buku..."
+                  rows={3}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                />
+              </div>
+
+              {/* PDF Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  File PDF Buku
+                </label>
+                <input
+                  ref={pdfInputRef}
+                  type="file"
+                  accept=".pdf"
+                  onChange={handlePdfChange}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => pdfInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary hover:bg-primary/5 transition-colors"
+                >
+                  <FileText className="w-5 h-5 text-gray-500" />
+                  <span className="text-gray-600">
+                    {formData.pdfFile ? formData.pdfFile.name : 'Pilih file PDF'}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Right: Cover Image Upload */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Cover Image Buku
+              </label>
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleCoverChange}
+                className="hidden"
+              />
+              <div 
+                onClick={() => coverInputRef.current?.click()}
+                className="aspect-[3/4] border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors overflow-hidden relative max-w-[300px] mx-auto lg:mx-0"
+              >
+                {coverPreview ? (
+                  <Image
+                    src={coverPreview}
+                    alt="Cover preview"
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+                    <ImageIcon className="w-12 h-12 mb-2" />
+                    <span className="text-sm">Klik untuk upload cover</span>
+                    <span className="text-xs">Format: JPG, PNG</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              className="flex items-center gap-2 bg-primary hover:bg-primary-700 text-white font-medium px-6 py-2.5 rounded-lg transition-colors"
+            >
+              <Upload className="w-5 h-5" />
+              Upload Buku
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Data Table */}
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b">
+          <h3 className="text-lg font-semibold text-gray-900">Daftar Buku</h3>
+        </div>
+        {loading ? (
+          <div className="p-6 text-center text-gray-600">Loading...</div>
+        ) : books.length === 0 ? (
+          <div className="p-6 text-center text-gray-600">Belum ada buku yang diupload</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Cover</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Judul</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Penulis</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Kategori</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Harga</th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {books.map((book) => (
+                  <tr key={book.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div className="w-12 h-16 bg-gray-200 rounded overflow-hidden relative">
+                        {book.coverUrl ? (
+                          <Image 
+                            src={book.coverUrl} 
+                            alt={book.title} 
+                            fill 
+                            className="object-cover" 
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                            <BookOpen className="w-5 h-5 text-gray-400" />
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 font-medium text-gray-900">{book.title}</td>
+                    <td className="px-6 py-4 text-gray-600">{book.author}</td>
+                    <td className="px-6 py-4 text-gray-600">{book.category}</td>
+                    <td className="px-6 py-4 text-gray-600">
+                      Rp {Number(book.price).toLocaleString('id-ID')}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center justify-end gap-2">
+                        <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )
